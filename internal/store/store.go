@@ -1,55 +1,18 @@
 package store
-
-import (
-	"database/sql"
-	"fmt"
-	"os"
-	"path/filepath"
-
-	_ "modernc.org/sqlite"
-)
-
-type DB struct {
-	*sql.DB
-}
-
-func Open(dataDir string) (*DB, error) {
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return nil, fmt.Errorf("mkdir: %w", err)
-	}
-	dsn := filepath.Join(dataDir, "crossroads.db") + "?_journal_mode=WAL&_busy_timeout=5000"
-	db, err := sql.Open("sqlite", dsn)
-	if err != nil {
-		return nil, fmt.Errorf("open: %w", err)
-	}
-	db.SetMaxOpenConns(1)
-	if err := migrate(db); err != nil {
-		return nil, fmt.Errorf("migrate: %w", err)
-	}
-	return &DB{db}, nil
-}
-
-func migrate(db *sql.DB) error {
-	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS profiles (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        slug TEXT NOT NULL UNIQUE,
-        display_name TEXT NOT NULL,
-        bio TEXT,
-        avatar_url TEXT,
-        theme TEXT DEFAULT 'default',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-     );
-     CREATE TABLE IF NOT EXISTS links (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        profile_id INTEGER NOT NULL,
-        title TEXT NOT NULL,
-        url TEXT NOT NULL,
-        description TEXT,
-        icon TEXT,
-        sort_order INTEGER DEFAULT 0,
-        active INTEGER DEFAULT 1,
-        click_count INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-     );`)
-	return err
-}
+import("database/sql";"fmt";"os";"path/filepath";"time";_ "modernc.org/sqlite")
+type DB struct{*sql.DB}
+type Profile struct{ID int64 `json:"id"`;Slug string `json:"slug"`;Name string `json:"name"`;Bio string `json:"bio"`;AvatarURL string `json:"avatar_url"`;Theme string `json:"theme"`;CreatedAt time.Time `json:"created_at"`}
+type Link struct{ID int64 `json:"id"`;ProfileID int64 `json:"profile_id"`;Title string `json:"title"`;URL string `json:"url"`;Icon string `json:"icon"`;Position int `json:"position"`;Active bool `json:"active"`;Clicks int `json:"clicks"`;CreatedAt time.Time `json:"created_at"`}
+func Open(dataDir string)(*DB,error){if err:=os.MkdirAll(dataDir,0755);err!=nil{return nil,fmt.Errorf("mkdir: %w",err)};dsn:=filepath.Join(dataDir,"crossroads.db")+"?_journal_mode=WAL&_busy_timeout=5000";db,err:=sql.Open("sqlite",dsn);if err!=nil{return nil,fmt.Errorf("open: %w",err)};db.SetMaxOpenConns(1);if err:=migrate(db);err!=nil{return nil,fmt.Errorf("migrate: %w",err)};return &DB{db},nil}
+func migrate(db *sql.DB)error{_,err:=db.Exec(`CREATE TABLE IF NOT EXISTS profiles(id INTEGER PRIMARY KEY AUTOINCREMENT,slug TEXT NOT NULL UNIQUE,name TEXT NOT NULL,bio TEXT DEFAULT '',avatar_url TEXT DEFAULT '',theme TEXT DEFAULT 'dark',created_at DATETIME DEFAULT CURRENT_TIMESTAMP);CREATE TABLE IF NOT EXISTS links(id INTEGER PRIMARY KEY AUTOINCREMENT,profile_id INTEGER NOT NULL,title TEXT NOT NULL,url TEXT NOT NULL,icon TEXT DEFAULT '',position INTEGER DEFAULT 0,active INTEGER DEFAULT 1,clicks INTEGER DEFAULT 0,created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`);return err}
+func(db *DB)ListProfiles()([]Profile,error){rows,err:=db.Query(`SELECT id,slug,name,bio,avatar_url,theme,created_at FROM profiles ORDER BY name`);if err!=nil{return nil,err};defer rows.Close();var out[]Profile;for rows.Next(){var p Profile;rows.Scan(&p.ID,&p.Slug,&p.Name,&p.Bio,&p.AvatarURL,&p.Theme,&p.CreatedAt);out=append(out,p)};return out,nil}
+func(db *DB)GetProfile(slug string)(*Profile,error){p:=&Profile{};err:=db.QueryRow(`SELECT id,slug,name,bio,avatar_url,theme,created_at FROM profiles WHERE slug=?`,slug).Scan(&p.ID,&p.Slug,&p.Name,&p.Bio,&p.AvatarURL,&p.Theme,&p.CreatedAt);if err!=nil{return nil,err};return p,nil}
+func(db *DB)CreateProfile(p *Profile)error{if p.Theme==""{p.Theme="dark"};res,err:=db.Exec(`INSERT INTO profiles(slug,name,bio,avatar_url,theme)VALUES(?,?,?,?,?)`,p.Slug,p.Name,p.Bio,p.AvatarURL,p.Theme);if err!=nil{return err};p.ID,_=res.LastInsertId();return nil}
+func(db *DB)DeleteProfile(id int64)error{_,err:=db.Exec(`DELETE FROM profiles WHERE id=?`,id);_,_=db.Exec(`DELETE FROM links WHERE profile_id=?`,id);return err}
+func(db *DB)ListLinks(profileID int64)([]Link,error){rows,err:=db.Query(`SELECT id,profile_id,title,url,icon,position,active,clicks,created_at FROM links WHERE profile_id=? ORDER BY position,id`,profileID);if err!=nil{return nil,err};defer rows.Close();var out[]Link;for rows.Next(){var l Link;var active int;rows.Scan(&l.ID,&l.ProfileID,&l.Title,&l.URL,&l.Icon,&l.Position,&active,&l.Clicks,&l.CreatedAt);l.Active=active==1;out=append(out,l)};return out,nil}
+func(db *DB)CreateLink(l *Link)error{var active int;if l.Active{active=1};res,err:=db.Exec(`INSERT INTO links(profile_id,title,url,icon,position,active)VALUES(?,?,?,?,?,?)`,l.ProfileID,l.Title,l.URL,l.Icon,l.Position,active);if err!=nil{return err};l.ID,_=res.LastInsertId();return nil}
+func(db *DB)ToggleLink(id int64)error{_,err:=db.Exec(`UPDATE links SET active=1-active WHERE id=?`,id);return err}
+func(db *DB)DeleteLink(id int64)error{_,err:=db.Exec(`DELETE FROM links WHERE id=?`,id);return err}
+func(db *DB)Click(id int64){db.Exec(`UPDATE links SET clicks=clicks+1 WHERE id=?`,id)}
+func(db *DB)CountProfiles()(int,error){var n int;db.QueryRow(`SELECT COUNT(*) FROM profiles`).Scan(&n);return n,nil}
+func(db *DB)TotalClicks()(int,error){var n int;db.QueryRow(`SELECT COALESCE(SUM(clicks),0) FROM links`).Scan(&n);return n,nil}
