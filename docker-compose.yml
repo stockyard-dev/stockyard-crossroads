@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  crossroads:
+    build: .
+    ports:
+      - "9300:9300"
+    environment:
+      - PORT=9300
+      - DATA_DIR=/data
+      - CROSSROADS_LICENSE_KEY=
+    volumes:
+      - crossroads_data:/data
+    restart: unless-stopped
+volumes:
+  crossroads_data:
