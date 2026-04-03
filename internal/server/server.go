@@ -6,7 +6,9 @@ s.mux.HandleFunc("GET /api/links",s.list);s.mux.HandleFunc("POST /api/links",s.c
 s.mux.HandleFunc("GET /api/links/{id}/clicks",s.clicks)
 s.mux.HandleFunc("GET /api/stats",s.stats);s.mux.HandleFunc("GET /api/health",s.health)
 s.mux.HandleFunc("GET /ui",s.dashboard);s.mux.HandleFunc("GET /ui/",s.dashboard)
-s.mux.HandleFunc("GET /",s.root);return s}
+s.mux.HandleFunc("GET /",s.root);
+s.mux.HandleFunc("GET /api/tier",func(w http.ResponseWriter,r *http.Request){wj(w,200,map[string]any{"tier":s.limits.Tier,"upgrade_url":"https://stockyard.dev/crossroads/"})})
+return s}
 func(s *Server)ServeHTTP(w http.ResponseWriter,r *http.Request){
 path:=r.URL.Path
 if path!="/"&&!strings.HasPrefix(path,"/api/")&&!strings.HasPrefix(path,"/ui"){
