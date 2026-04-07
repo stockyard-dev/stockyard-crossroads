@@ -1,6 +1,40 @@
 package main
-import ("fmt";"log";"net/http";"os";"github.com/stockyard-dev/stockyard-crossroads/internal/server";"github.com/stockyard-dev/stockyard-crossroads/internal/store")
-func main(){port:=os.Getenv("PORT");if port==""{port="9070"};dataDir:=os.Getenv("DATA_DIR");if dataDir==""{dataDir="./crossroads-data"}
-db,err:=store.Open(dataDir);if err!=nil{log.Fatalf("crossroads: %v",err)};defer db.Close();srv:=server.New(db,server.DefaultLimits())
-fmt.Printf("\n  Crossroads — Self-hosted URL shortener\n  ─────────────────────────────────\n  Dashboard:  http://localhost:%s/ui\n  API:        http://localhost:%s/api\n  Data:       %s\n  ─────────────────────────────────\n  Questions? hello@stockyard.dev\n\n",port,port,dataDir)
-log.Printf("crossroads: listening on :%s",port);log.Fatal(http.ListenAndServe(":"+port,srv))}
+
+import (
+	"flag"
+	"fmt"
+	"github.com/stockyard-dev/stockyard-crossroads/internal/server"
+	"github.com/stockyard-dev/stockyard-crossroads/internal/store"
+	"log"
+	"net/http"
+	"os"
+)
+
+func main() {
+	portFlag := flag.String("port", "", "")
+	dataFlag := flag.String("data", "", "")
+	flag.Parse()
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "9070"
+	}
+	dataDir := os.Getenv("DATA_DIR")
+	if dataDir == "" {
+		dataDir = "./crossroads-data"
+	}
+	if *portFlag != "" {
+		port = *portFlag
+	}
+	if *dataFlag != "" {
+		dataDir = *dataFlag
+	}
+	db, err := store.Open(dataDir)
+	if err != nil {
+		log.Fatalf("crossroads: %v", err)
+	}
+	defer db.Close()
+	srv := server.New(db, server.DefaultLimits(), dataDir)
+	fmt.Printf("\n  Crossroads — Self-hosted URL shortener\n  ─────────────────────────────────\n  Dashboard:  http://localhost:%s/ui\n  API:        http://localhost:%s/api\n  Data:       %s\n  ─────────────────────────────────\n  Questions? hello@stockyard.dev\n\n", port, port, dataDir)
+	log.Printf("crossroads: listening on :%s", port)
+	log.Fatal(http.ListenAndServe(":"+port, srv))
+}
